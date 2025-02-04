@@ -1,0 +1,3 @@
+#!/bin/bash
+export LD_LIBRARY_PATH=$LB_LIBRARY_PATH:~/dv1580_a1
+echo $LD_LIBRARY_PATH
