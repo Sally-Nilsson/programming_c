@@ -148,6 +148,7 @@ void test_list_display()
 #endif
 
     list_init(&head, sizeof(Node) * Nnodes);
+    printf("  ... [PASS].\n");
 
     int randomLow = rand() % Nnodes;
 
@@ -375,6 +376,7 @@ void test_list_insert_loop(int count)
         list_insert(&head, i);
     }
     Node *current = head;
+    list_print_details(&head);
     for (int i = 0; i < count; i++)
     {
         my_assert(current->data == i);
@@ -401,13 +403,13 @@ void test_list_insert_after_loop(int count)
     Node *current = head;
     my_assert(current->data == 12345);
     current = current->next;
-
+    printf("Current data: %d\n", current->data);
     for (int i = count - 1; i >= 0; i--)
     {
         my_assert(current->data == i);
         current = current->next;
     }
-
+    
     list_cleanup(&head);
     printf_green("[PASS].\n");
 }
@@ -416,11 +418,13 @@ void test_list_delete_loop(int count)
 {
     printf_yellow("  Testing list_delete loop ---> ");
     Node *head = NULL;
-    list_init(&head, sizeof(Node) * count);
+    list_init(&head, sizeof(Node) * count+1);
     for (int i = 0; i < count; i++)
     {
+        printf("Inserting %d\n", i);
         list_insert(&head, i);
     }
+    list_print_details(&head);
 
     for (int i = 0; i < count; i++)
     {

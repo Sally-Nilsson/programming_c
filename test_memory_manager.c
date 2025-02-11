@@ -32,6 +32,7 @@ void test_alloc_and_free()
     my_assert(block1 != NULL);
     void *block2 = mem_alloc(200);
     my_assert(block2 != NULL);
+    mem_print_status();
     mem_free(block1);
     mem_free(block2);
     mem_deinit();
@@ -94,8 +95,10 @@ void test_resize()
     mem_init(1024);
     void *block = mem_alloc(100);
     my_assert(block != NULL);
+    mem_print_status();
     block = mem_resize(block, 200);
     my_assert(block != NULL);
+    //mem_print_status();
     mem_free(block);
     mem_deinit();
     printf_green("[PASS].\n");

@@ -2,10 +2,9 @@
 #include <stdio.h>
 #include <stdint.h>
 
-// Node structure
 typedef struct Node {
-    uint16_t data;
-    struct Node* next;
+    uint16_t data; // Data in the node
+    struct Node* next; // Pointer to the next node
 } Node;
 
 void list_init(Node** head, size_t size) {
@@ -17,13 +16,12 @@ void list_insert(Node** head, uint16_t data) {
     if (!head) return;
 
     Node* new_node = (Node*) mem_alloc(sizeof(Node));
-    if (!new_node) {
-        printf("mem_alloc failed!\n");
-        return;
-    }
+    if (!new_node) return;
 
     new_node->data = data;
     new_node->next = NULL;
+
+    // Addes the new node to the end of the list
     if (*head == NULL) {
         *head = new_node;
     } else {
@@ -121,6 +119,7 @@ void list_display_range(Node** head, Node* start_node, Node* end_node) {
     if (!head || !*head) return;
     
     Node* temp = *head;
+    // Find the start node
     if (start_node == NULL) {
         start_node = temp;
     }
@@ -129,14 +128,32 @@ void list_display_range(Node** head, Node* start_node, Node* end_node) {
     }
 
     printf("[");
-    while (temp && temp != end_node) {
+    // If no end node is provided, print the entire list
+    if (end_node == NULL) {
+        while (temp) {
+        if (temp->next == NULL) {
+            printf("%d", temp->data);
+            break;
+        }
         printf("%d", temp->data);
         if (temp->next && temp->next != end_node) printf(", ");
         temp = temp->next;
+        }
+    }
+    else {
+        // End node is provided, print the list until the end node
+        while (temp) {
+            if (temp == end_node) {
+                printf("%d", temp->data);
+                break;
+            }
+            printf("%d", temp->data);
+            if (temp->next) printf(", ");
+            temp = temp->next;
+        }
     }
     printf("]");
 }
-
 
 int list_count_nodes(Node** head) {
     if (!head || !*head) return 0;
@@ -151,18 +168,7 @@ int list_count_nodes(Node** head) {
 }
 
 void list_cleanup(Node** head) {
-    if (!head || !*head) return;
-    printf("Cleaning up list...\n");
-
-    Node* current = *head;
-    Node* next_node;
-
-    while (current) {
-        next_node = current->next;
-        mem_free(current);
-        current = next_node;
-    }
-    printf("List cleaned up.\n");
+    if (!head) return;
 
     *head = NULL;
     
@@ -176,6 +182,7 @@ void list_print_details(Node** head) {
     }
 
     Node* temp = *head;
+    // Print the details of each node
     while (temp) {
         size_t node_size = sizeof(Node); // The size of each node
         printf("Node data: %d, Size: %zu bytes, Next node is %s\n", 

@@ -4,18 +4,15 @@
 #include <stdbool.h>
 #include <string.h>
 
-#define METADATA_LIMIT 0.2  // Max additional memory allowed for metadata (20%)
-
 typedef struct Block {
     size_t size;         // Size of the memory block
-    bool free;           // Is the block free?
+    bool free;           // Is the block free
+    void* pointer_memory; // Pointer to the memory block
     struct Block* next;  // Pointer to the next block
 } Block;
 
-static Block* free_list = NULL;  // Head of the free list
+static Block* block_list = NULL;  // Head of the free list
 static void* memory_pool = NULL; // Pointer to allocated memory pool
-static size_t pool_size = 0;     // Size of the memory pool
-static size_t used_metadata = 0; // Tracks metadata usage
 
 void mem_init(size_t size) {
     if (memory_pool) {
@@ -23,43 +20,40 @@ void mem_init(size_t size) {
         return;
     }
 
-    // Allocate pool and metadata separately
-    pool_size = size;
     memory_pool = malloc(size);
     if (!memory_pool) {
         printf("Failed to allocate memory pool!\n");
-        exit(1);
+        return;
     }
 
-    free_list = malloc(sizeof(Block));
-    if (!free_list) {
+    block_list = malloc(sizeof(Block));
+    if (!block_list) {
         printf("Failed to allocate metadata!\n");
         free(memory_pool);
-        exit(1);
+        return;
     }
-    used_metadata += sizeof(Block);
     
-    // Initialize free block
-    free_list->size = size;
-    free_list->free = true;
-    free_list->next = NULL;
+    // Initialize first block
+    block_list->size = size;
+    block_list->free = true;
+    block_list->pointer_memory = memory_pool;
+    block_list->next = NULL;
 }
 
 void* mem_alloc(size_t size) {
+    // If the size is 0, find the first free block
     if (size == 0) {
-        Block* curr = free_list;
+        Block* curr = block_list;
         while (curr) {
             if (curr->free) {
-                return memory_pool + (curr - free_list) * sizeof(Block);
+                return curr->pointer_memory;
             }
             curr = curr->next;
         }
         return NULL; // No free block found
     }
 
-    Block* curr = free_list;
-    Block* prev = NULL;
-
+    Block* curr = block_list;
     while (curr) {
         if (curr->free && curr->size >= size) {
             // Split if there's excess space
@@ -69,9 +63,9 @@ void* mem_alloc(size_t size) {
                     printf("Failed to allocate metadata!\n");
                     return NULL;
                 }
-                used_metadata += sizeof(Block);
                 
                 new_block->size = curr->size - size;
+                new_block->pointer_memory = curr->pointer_memory + size;
                 new_block->free = true;
                 new_block->next = curr->next;
                 
@@ -81,9 +75,8 @@ void* mem_alloc(size_t size) {
             } else {
                 curr->free = false;
             }
-            return memory_pool + (curr - free_list) * sizeof(Block);
+            return curr->pointer_memory;
         }
-        prev = curr;
         curr = curr->next;
     }
     return NULL; // No suitable block found
@@ -92,24 +85,30 @@ void* mem_alloc(size_t size) {
 void mem_free(void* block) {
     if (!block) return;
 
-    Block* curr = free_list;
+    Block* curr = block_list;
     Block* prev = NULL;
 
-    // Locate the block in the free list
+    // Locate the block in the block list
     while (curr) {
-        if ((void*)(memory_pool + (curr - free_list) * sizeof(Block)) == block) {
+        if (curr->pointer_memory == block) {
             curr->free = true;
+            printf("Block at %p freed.\n", block);
 
             // Merge with next block if it's free
             if (curr->next && curr->next->free) {
-                curr->size += sizeof(Block) + curr->next->size;
-                curr->next = curr->next->next;
+                Block* next = curr->next;
+                curr->size += sizeof(Block) + next->size;
+                curr->next = next->next;
+                free(next);
+                printf("Merged with next block.\n");
             }
 
             // Merge with previous block if it's free
             if (prev && prev->free) {
                 prev->size += sizeof(Block) + curr->size;
                 prev->next = curr->next;
+                free(curr);
+                printf("Merged with previous block.\n");
             }
 
             return;
@@ -120,45 +119,68 @@ void mem_free(void* block) {
 }
 
 void* mem_resize(void* block, size_t size) {
-    if (!block) return mem_alloc(size);
+    if (!block || size == 0) return NULL;
 
-    Block* curr = free_list;
+    Block* curr = block_list;
+
+    // Find the block that is going to be resized in the block list
     while (curr) {
-        if (memory_pool + (curr - free_list) * sizeof(Block) == block) {
-            if (curr->size >= size) return block;
-            void* new_block = mem_alloc(size);
-            if (!new_block) return NULL;
-            memcpy(new_block, block, curr->size);
-            mem_free(block);
-            used_metadata -= sizeof(Block);
-            return new_block;
+        if (curr->pointer_memory == block) {
+            curr = (Block*) block;
+            break;
         }
         curr = curr->next;
     }
-    return NULL;
+
+    // If shrinking the block
+    if (size < curr->size) {
+        Block* new_block = malloc(sizeof(Block));
+        if (!new_block) return NULL;
+        
+        new_block->size = size;
+        new_block->pointer_memory = curr->pointer_memory + curr->size - size;
+        new_block->free = true;
+        new_block->next = curr->next;
+        
+        curr->size = curr->size - size;
+        curr->next = new_block;
+        return curr;
+    }
+
+    // If expanding the block
+    if (curr->next && curr->next->free && curr->next->size + curr->size >= size) {
+        // Check next block if it's free and has enough space
+        Block* next_block = curr->next;
+        curr->size = size;
+        next_block->size = next_block->size + curr->size - size;
+        next_block->pointer_memory = next_block->pointer_memory + next_block->size - curr->size;
+        return curr;
+    }
+
+    // Resize to the same size
+    return curr;
 }
 
 void mem_deinit() {
     free(memory_pool);
     memory_pool = NULL;
-    pool_size = 0;
     printf("Memory pool deallocated.\n");
-    Block* curr = free_list;
+
+    Block* curr = block_list;
     while (curr) {
         Block* next = curr->next;
-        free(curr);
+        if (curr)
+            free(curr);
         curr = next;
     }
     printf("Metadata deallocated.\n");
-    free_list = NULL;
-    used_metadata = 0;
+    block_list = NULL;
 }
 
 void mem_print_status() {
-    printf("\n\nMemory Pool Size: %zu bytes\n", pool_size);
-    printf("Used Metadata: %zu bytes\n", used_metadata);
+    // Prints the block list and their status
     printf("Blocks:\n");
-    Block* curr = free_list;
+    Block* curr = block_list;
     while (curr) {
         printf("Block at %p - Size: %zu bytes - %s\n", (void*)curr, curr->size, curr->free ? "Free" : "Allocated");
         curr = curr->next;
