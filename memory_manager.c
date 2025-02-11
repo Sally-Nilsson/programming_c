@@ -126,14 +126,15 @@ void* mem_resize(void* block, size_t size) {
     // Find the block that is going to be resized in the block list
     while (curr) {
         if (curr->pointer_memory == block) {
-            curr = (Block*) block;
+            printf("Block found.\n");
             break;
         }
         curr = curr->next;
     }
 
     // If shrinking the block
-    if (size < curr->size) {
+    if (curr->size > size) {
+        printf("Shrinking block.\n");
         Block* new_block = malloc(sizeof(Block));
         if (!new_block) return NULL;
         
@@ -144,21 +145,21 @@ void* mem_resize(void* block, size_t size) {
         
         curr->size = curr->size - size;
         curr->next = new_block;
-        return curr;
+        return curr->pointer_memory;
     }
 
     // If expanding the block
     if (curr->next && curr->next->free && curr->next->size + curr->size >= size) {
+        printf("Expaning block.\n");
         // Check next block if it's free and has enough space
         Block* next_block = curr->next;
         curr->size = size;
         next_block->size = next_block->size + curr->size - size;
         next_block->pointer_memory = next_block->pointer_memory + next_block->size - curr->size;
-        return curr;
+        return curr->pointer_memory;
     }
-
     // Resize to the same size
-    return curr;
+    return curr->pointer_memory;
 }
 
 void mem_deinit() {
