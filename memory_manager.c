@@ -94,10 +94,11 @@ void mem_free(void* block) {
             curr->free = true;
             printf("Block at %p freed.\n", block);
 
+            Block* next = curr->next;
+
             // Merge with next block if it's free
-            if (curr->next && curr->next->free) {
-                Block* next = curr->next;
-                curr->size += sizeof(Block) + next->size;
+            if (next && next->free) {
+                curr->size += next->size;
                 curr->next = next->next;
                 free(next);
                 printf("Merged with next block.\n");
@@ -105,7 +106,7 @@ void mem_free(void* block) {
 
             // Merge with previous block if it's free
             if (prev && prev->free) {
-                prev->size += sizeof(Block) + curr->size;
+                prev->size += curr->size;
                 prev->next = curr->next;
                 free(curr);
                 printf("Merged with previous block.\n");
@@ -138,12 +139,12 @@ void* mem_resize(void* block, size_t size) {
         Block* new_block = malloc(sizeof(Block));
         if (!new_block) return NULL;
         
-        new_block->size = size;
-        new_block->pointer_memory = curr->pointer_memory + curr->size - size;
+        new_block->size = curr->size - size;
+        new_block->pointer_memory = curr->pointer_memory + size;
         new_block->free = true;
         new_block->next = curr->next;
         
-        curr->size = curr->size - size;
+        curr->size = size;
         curr->next = new_block;
         return curr->pointer_memory;
     }
@@ -153,9 +154,9 @@ void* mem_resize(void* block, size_t size) {
         printf("Expaning block.\n");
         // Check next block if it's free and has enough space
         Block* next_block = curr->next;
-        curr->size = size;
-        next_block->size = next_block->size + curr->size - size;
-        next_block->pointer_memory = next_block->pointer_memory + next_block->size - curr->size;
+        curr->size = next_block->size;
+        curr->next = next_block->next;
+        free(next_block);
         return curr->pointer_memory;
     }
     // Resize to the same size
